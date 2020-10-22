@@ -1,0 +1,23 @@
+#!/bin/sh
+#|-*- mode:lisp -*-|#
+#|
+exec ros -Q -- $0 "$@"
+|#
+
+(progn
+  (ros:ensure-asdf)
+  (ql:quickload :cats :silent t)
+  )
+
+(defpackage :DestructHub.script.cats
+  (:use :cl :cats))
+
+(in-package :DestructHub.script.cats)
+
+(defun main (&rest argv)
+  "Generates both the main README.md and the individual README.md of each cat."
+  (declare (ignore argv))
+  (format t ":: Generating main README.md~%")
+  (generate-main-readme)
+  (format t ":: Generating cats README.md~%")
+  (generate-cats-readmes (get-cats-names)))

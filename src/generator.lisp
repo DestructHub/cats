@@ -1,6 +1,10 @@
 ;;; Functions related to the README.md(s) generation
 
-(load "utils.lisp")
+(in-package #:cats)
+
+(defvar cat-folder "cats")
+(defvar cat-path (portable-pathname cat-folder))
+
 
 (defun get-folder-name (pathname)
   "Return only the pathname's folder as string instead of the entire path."
@@ -8,19 +12,21 @@
 
 (defun get-cats-names ()
   "Return a list of the cats names based on the cats directory."
-  (let* ((directory (uiop:subdirectories "../cats"))
+  (let* ((directory (uiop:subdirectories cat-path))
          (folders (map 'list #'get-folder-name directory)))
     folders))
 
 (defun get-cat-pictures (cat-name)
   "Return a list of pathnames of all images of a given cat name string."
-  (remove-if #'is-not-image (uiop:directory-files (format nil "../cats/~a/" cat-name))))
+  (remove-if #'is-not-image
+             (uiop:directory-files (probe-file (pathjoin cat-path cat-name)))))
 
 (defun get-cat-profile-picture (cat-name)
-  "Return the picture relative path (from root) that will be used on the main README.md for the given cat name string."
+  "Return the picture relative path (from root)
+that will be used on the main README.md for the given cat name string."
   (let* ((files (get-cat-pictures cat-name))
          (first-file (file-namestring (first files))))
-    (format nil "./cats/~a/~a" cat-name first-file)))
+    (format nil "./~a/~a/~a" cat-folder cat-name first-file)))
 
 (defun generate-img (url &key (width 250))
   "Generate a image tag that shows the image in the given url."
@@ -28,7 +34,8 @@
 
 (defun generate-table-cell (cat-name)
   "Return a string of a table cell for the given cat name string."
-  (format nil "<td align=\"center\"><a href=\"./cats/~a\">~a<strong>~a</strong></a></td>"
+  (format nil "<td align=\"center\"><a href=\"./~a/~a\">~a<strong>~a</strong></a></td>"
+          cat-folder
           cat-name
           (generate-img (get-cat-profile-picture cat-name))
           cat-name))
@@ -42,7 +49,9 @@ Each row will have a number of elements corresponding to the given chunk size."
          (row-string (format nil "<tr>~a</tr>" cells-string)))
     (if (null (nth chunk-size cats-names))
         row-string
-        (concatenate 'string row-string (generate-table-rows (subseq cats-names chunk-size))))))
+        (concatenate 'string
+                     row-string
+                     (generate-table-rows (subseq cats-names chunk-size))))))
 
 (defun generate-table (cats-names)
   "Returns a string of the entire table for a given list of names."
@@ -51,11 +60,16 @@ Each row will have a number of elements corresponding to the given chunk size."
 (defun generate-single-cat-readme (cat-name)
   "Generate a README.md for the given cat name string."
   (let* ((files (get-cat-pictures cat-name) )
-         (files-names (map 'list #'file-namestring files)))
-    (with-open-file (out-stream (concatenate 'string "../cats/" cat-name "/README.md") :direction :output :if-does-not-exist :create :if-exists :overwrite)
+         (files-names (map 'list #'file-namestring files))
+         (readme-path (pathjoin cat-path cat-name "README.md")))
+    (with-open-file (out-stream readme-path
+                                :direction :output
+                                :if-does-not-exist :create
+                                :if-exists :overwrite)
       (write-line (concatenate 'string "# Meet " cat-name) out-stream)
       (loop for file-name in files-names
-            do (write-line (generate-img file-name) out-stream)))))
+            do (write-line (generate-img file-name) out-stream)))
+    (format t "Written in ~a...~%" readme-path)))
 
 (defun generate-cats-readmes (cats-names)
   "Generate a README.md for each cat name in the given list."
@@ -64,9 +78,16 @@ Each row will have a number of elements corresponding to the given chunk size."
 
 (defun generate-main-readme ()
   "Generate the main (root) README.md based on the template file."
-  (with-open-file (in-stream "template.md" :if-does-not-exist :error)
-    (let ((template-string (make-string (file-length in-stream))))
+  (with-open-file (in-stream (pathjoin "src" "template.md")
+                             :if-does-not-exist :error)
+    (let ((template-string (make-string (file-length in-stream)))
+          (readme-path (portable-pathname "README.md") ))
       (read-sequence template-string in-stream)
-      (with-open-file (out-stream "../README.md" :direction :output :if-does-not-exist :create :if-exists :overwrite)
-        (write-string (str-replace template-string "{{table}}" (generate-table (get-cats-names))) out-stream)))))
-
+      (with-open-file (out-stream readme-path
+                                  :direction :output
+                                  :if-does-not-exist :create
+                                  :if-exists :overwrite)
+        (write-string (str-replace template-string "{{table}}"
+                                   (generate-table (get-cats-names)))
+                      out-stream))
+      (format t "Written in ~a...~%" readme-path))))
